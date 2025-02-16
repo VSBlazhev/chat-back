@@ -31,6 +31,7 @@ export class ChatGateway {
       password: data.password,
       clients: new Set(),
     });
+    // console.log('room created');
     return { message: `Room ${data.roomName} created` };
   }
 
@@ -49,12 +50,11 @@ export class ChatGateway {
     }
     client.join(data.roomName);
     room.clients.add(client.id);
-    this.server
-      .to(data.roomName)
-      .emit(
-        'roomJoined',
-        `User ${data.username} (${client.id}) joined room ${data.roomName}`,
-      );
+    this.server.to(data.roomName).emit('roomJoined', {
+      roomName: data.roomName,
+      message: `User ${data.username} (${client.id}) joined room ${data.roomName}`,
+    });
+    // console.log('room joind');
     return { room: data.roomName, message: `Joined room: ${data.roomName}` };
   }
 
@@ -73,6 +73,10 @@ export class ChatGateway {
           'roomLeft',
           `User ${data.username} (${client.id}) left room ${data.roomName}`,
         );
+      // console.log('client left', room.clients.size);
+      if (room.clients.size === 0) {
+        this.rooms.delete(data.roomName);
+      }
       return { room: data.roomName, message: `Left room: ${data.roomName}` };
     }
     return { error: 'Room does not exist' };
@@ -80,14 +84,16 @@ export class ChatGateway {
 
   @SubscribeMessage('sendMessage')
   handleMessage(
-    @MessageBody() data: { room: string; message: string; username: string },
+    @MessageBody()
+    data: { roomName: string; message: string; username: string },
     @ConnectedSocket() client: Socket,
   ) {
-    if (!this.rooms.has(data.room)) {
+    if (!this.rooms.has(data.roomName)) {
       return { error: 'Room does not exist' };
     }
+    // console.log(data);
     this.server
-      .to(data.room)
+      .to(data.roomName)
       .emit('message', { sender: data.username, message: data.message });
   }
 
@@ -99,6 +105,7 @@ export class ChatGateway {
         hasPassword: !!room.password,
       }),
     );
-    return { rooms: roomList };
+    // console.log('geting rooms');
+    this.server.emit('availableRooms', roomList);
   }
 }
